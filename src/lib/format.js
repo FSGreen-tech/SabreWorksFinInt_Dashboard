@@ -34,3 +34,27 @@ export const timeAgo = (iso) => {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
 };
+
+/** Reporting periods are `YYYY-MM`; render as "July 2026". */
+export const formatPeriod = (period) => {
+  const match = /^(\d{4})-(\d{2})$/.exec(String(period ?? ""));
+  if (!match) return "";
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)).toLocaleDateString(
+    "en-GB",
+    { month: "long", year: "numeric", timeZone: "UTC" }
+  );
+};
+
+/**
+ * Shares arrive as fractions, rendered to one decimal.
+ *
+ * A product that sold ₦30,000 against a ₦765m month is 0.004% — real revenue
+ * that `toFixed(1)` would print as "0.0%", i.e. as nothing at all. Anything
+ * that would round to zero but isn't gets "<0.1%" instead.
+ */
+export const formatShare = (fraction) => {
+  const percent = (Number(fraction) || 0) * 100;
+  if (percent > 0 && percent < 0.05) return "<0.1%";
+  if (percent < 0 && percent > -0.05) return ">-0.1%";
+  return `${percent.toFixed(1)}%`;
+};

@@ -160,6 +160,77 @@ export function deriveLiquidated(derivedInvestments) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Sales — product inflow                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Roll the `sales` tab up into one month's product inflow.
+ *
+ * The sheet is append-only by design: each month's rows are added below the
+ * last, and this picks the most recent period present rather than requiring
+ * anyone to clear the tab or edit code. `meta.sales_period` overrides that
+ * when a specific month needs pinning — but only if that month actually has
+ * rows, so a stale pin can never blank the section out.
+ *
+ * Returns null when there is nothing to show, which is how the section stays
+ * invisible on a sheet that has no `sales` tab yet.
+ */
+export function deriveSales(salesRows = [], { period: pinned = null } = {}) {
+  if (!salesRows.length) return null;
+
+  // Newest first. `YYYY-MM` sorts lexicographically, so no date parsing here.
+  const periods = [...new Set(salesRows.map((r) => r.period).filter(Boolean))]
+    .sort()
+    .reverse();
+  if (!periods.length) return null;
+
+  const active = pinned && periods.includes(pinned) ? pinned : periods[0];
+
+  // Every month is summarised, not just the active one, so the section's month
+  // picker is a lookup rather than a re-derivation — and `byPeriod[period]` is
+  // the very object spread below, so the two can never disagree.
+  const byPeriod = Object.fromEntries(
+    periods.map((period) => [period, summarizePeriod(salesRows, period)])
+  );
+
+  return { ...byPeriod[active], periods, byPeriod };
+}
+
+/** One month's inflow, ranked by product. */
+function summarizePeriod(salesRows, period) {
+  const byProduct = new Map();
+  for (const row of salesRows) {
+    if (row.period !== period) continue;
+    const existing = byProduct.get(row.product);
+    if (existing) existing.inflow += row.inflow;
+    else
+      byProduct.set(row.product, {
+        id: row.product,
+        name: row.product,
+        inflow: row.inflow,
+      });
+  }
+
+  const ranked = [...byProduct.values()].sort((a, b) => b.inflow - a.inflow);
+  const total = sumBy(ranked, "inflow");
+
+  // Guard the divisor: a month of all-zero rows is unusual but not an error,
+  // and must not paint every share as NaN%.
+  const products = ranked.map((p) => ({
+    ...p,
+    share: total === 0 ? 0 : p.inflow / total,
+  }));
+
+  return {
+    period,
+    products,
+    total,
+    productCount: products.length,
+    top: products[0] ?? null,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Assembly                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -210,6 +281,7 @@ export function buildDashboard(normalized) {
   const depositCount = sumBy(buckets, "count");
   const availablePool = deriveAvailablePool(totalCash, buckets[0].payable);
   const liquidated = deriveLiquidated(investments);
+  const sales = deriveSales(normalized.sales, { period: meta.salesPeriod });
 
   return {
     asOf,
@@ -229,6 +301,7 @@ export function buildDashboard(normalized) {
     depositCount,
     availablePool,
     liquidated,
+    sales,
     kpis: deriveKpis({
       totalPrincipal,
       depositCount,

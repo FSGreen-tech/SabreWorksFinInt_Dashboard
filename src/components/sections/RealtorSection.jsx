@@ -2,7 +2,7 @@ import React, { Suspense, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
 import { Card, ChartSkeleton, EstBadge, SearchInput, SectionHeading } from "../ui";
-import { RealtorBarChart } from "../charts/lazy";
+import { HorizontalBarChart } from "../charts/lazy";
 import { formatNaira } from "../../lib/format";
 
 export default function RealtorSection({ realtors, ledgerComplete, ledgerTotal }) {
@@ -25,7 +25,7 @@ export default function RealtorSection({ realtors, ledgerComplete, ledgerTotal }
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <Suspense fallback={<ChartSkeleton height="h-80" />}>
-            <RealtorBarChart data={top} />
+            <HorizontalBarChart data={top} dataKey="invested" valueLabel="Invested" />
           </Suspense>
           {!ledgerComplete && (
             <p className="mt-2 text-[11px] text-slate-500">
