@@ -144,6 +144,21 @@ export function deriveKpis({
   ];
 }
 
+/**
+ * Total maturity value and count for investments whose status is
+ * "fully liquidated" (compared case-insensitively).
+ */
+export function deriveLiquidated(derivedInvestments) {
+  const rows = derivedInvestments.filter(
+    (i) => (i.status || "").toLowerCase().trim() === "fully liquidated",
+  );
+  return {
+    count: rows.length,
+    principal: sumBy(rows, "invested"),
+    payable: sumBy(rows, "atMaturity"),
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Assembly                                                           */
 /* ------------------------------------------------------------------ */
@@ -194,6 +209,7 @@ export function buildDashboard(normalized) {
   const totalPrincipal = sumBy(buckets, "principal");
   const depositCount = sumBy(buckets, "count");
   const availablePool = deriveAvailablePool(totalCash, buckets[0].payable);
+  const liquidated = deriveLiquidated(investments);
 
   return {
     asOf,
@@ -212,6 +228,7 @@ export function buildDashboard(normalized) {
     totalPrincipal,
     depositCount,
     availablePool,
+    liquidated,
     kpis: deriveKpis({
       totalPrincipal,
       depositCount,

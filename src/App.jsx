@@ -40,6 +40,7 @@ function Dashboard({ dashboard, sync }) {
     totalCash,
     totalPayable,
     availablePool,
+    liquidated,
     ledgerComplete,
     ledgerShown,
     ledgerTotal,
@@ -65,7 +66,7 @@ function Dashboard({ dashboard, sync }) {
 
       <KpiRow kpis={kpis} />
 
-      <MaturitySection buckets={buckets} totalPayable={totalPayable} />
+      <MaturitySection buckets={buckets} totalPayable={totalPayable} liquidated={liquidated} />
 
       <RealtorSection
         realtors={realtors}
@@ -116,6 +117,8 @@ export default function App() {
       <DashboardSkeleton />
     );
   }
+
+  console.log(dashboard)
 
   return (
     <Dashboard
