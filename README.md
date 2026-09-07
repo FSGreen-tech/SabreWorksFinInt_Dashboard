@@ -19,7 +19,7 @@ source records; totals, buckets and rollups are computed client-side.
 
 ```
 Google Sheet ──▶ apps-script/Code.gs ──▶ source.js ──▶ normalize.js ──▶ derive.js ──▶ UI
-   4 tabs         tab → JSON             fetch+cache    coerce+validate    selectors
+   5 tabs         tab → JSON             fetch+cache    coerce+validate    selectors
 ```
 
 | Module | Responsibility |
@@ -41,7 +41,7 @@ as time passes without anyone editing the sheet.
 
 ## Sheet schema
 
-Four tabs. The header row is the contract — column order doesn't matter, and
+Five tabs. The header row is the contract — column order doesn't matter, and
 headers are matched case-insensitively with spaces collapsed to underscores.
 
 **`investments`**
@@ -53,10 +53,88 @@ customer | realtor | invested | at_maturity | start_date | maturity_date | statu
 
 **`projects`** — `name | budget | status`
 
-**`meta`** — one row: `as_of | currency | deposit_count`
+**`sales`** — `product | period | inflow`
+
+**`meta`** — one row: `as_of | currency | deposit_count` (plus optional
+`sales_period`)
 
 Currency cells may be plain numbers or formatted (`₦50,000,000.00`); dates may
 be real date cells, ISO text, or `DD/MM/YYYY`. All are handled.
+
+## The `sales` tab
+
+Drives the **Sales — Product Inflow** section: the three headline tiles, the
+inflow-by-product bar chart, and the sortable product breakdown. One row per
+product per month.
+
+```
+product        period    inflow
+SabreFlexx     2026-07   519036000
+OPIC           2026-07   178000000
+Oranje         2026-07   50000000
+Grosvenors     2026-07   10000000
+Ikise          2026-07   4155909
+Other Income   2026-07   2675341
+Moniya         2026-07   1000000
+Mowe           2026-07   30000
+```
+
+Nothing else is a column. The total, the product count, the top product and
+every percentage are **derived** — there is no total row to keep in sync, and
+adding a product is one new line, not an edit to four places.
+
+| Column | Notes |
+|---|---|
+| `product` | Any label. Repeat rows for one product in one month are **summed**, so per-deal lines work as well as a monthly total. |
+| `period` | The reporting month. `2026-07`, `July 2026`, `Jul 2026`, `07/2026`, or a real date cell — all read as July 2026. **Optional**: a blank period adopts the month of `meta.as_of`. |
+| `inflow` | Naira. Plain number or formatted (`₦519,036,000.00`); both parse. |
+
+### Adding next month
+
+The tab is **append-only**. Put August's rows underneath July's with their own
+`period` and stop:
+
+```
+SabreFlexx     2026-08   402100000
+OPIC           2026-08   96500000
+```
+
+The dashboard shows the newest month it finds, and a month picker appears
+beside the section heading once more than one period is present — July stays
+one click away. Nothing is deleted, nothing is overwritten, and no code
+changes.
+
+To hold the section on a specific month instead — closing a period while the
+next one is still being entered — put that month in `meta.sales_period`
+(`2026-07`). Clear the cell to go back to "newest wins". A `sales_period`
+naming a month with no rows is ignored rather than blanking the section.
+
+### If a row is wrong
+
+A row with no product name, an unreadable `inflow`, or a `period` cell that
+was filled in but cannot be read as a month is **skipped and reported** — it
+appears in the issue banner at the top of the dashboard with its sheet row
+number, rather than being silently folded into the total. A blank `period` is
+not an error; an unreadable one is, because quietly filing June's revenue
+under July would move a number on screen with nothing to show it had changed.
+
+The whole section is optional. Until the `sales` tab exists the dashboard
+renders exactly as it does today — the section is absent, not empty.
+
+### One-time step on an already-deployed sheet
+
+`sales` was added to `TABS` in [`apps-script/Code.gs`](apps-script/Code.gs).
+A deployed web app keeps serving the code version it was deployed with, so an
+endpoint that is already live will keep returning the old four tabs until it
+is redeployed:
+
+1. Paste the updated `Code.gs` into the spreadsheet's Apps Script editor.
+2. **Deploy → Manage deployments →** pencil-edit the live deployment **→
+   Version: New version → Deploy.**
+
+Editing the deployment rather than creating a new one keeps the same `/exec`
+URL, so `.env` does not change. If the section still does not appear, the
+endpoint is serving a stale version — that step was missed.
 
 ## Sample data
 
@@ -64,7 +142,7 @@ be real date cells, ISO text, or `DD/MM/YYYY`. All are handled.
 npm run sample:csv
 ```
 
-Writes four ready-to-paste CSVs into [`sample-data/`](sample-data/) — one per
+Writes five ready-to-paste CSVs into [`sample-data/`](sample-data/) — one per
 tab, matching the schema above. Paste each into the correspondingly named tab
 (Sheets will split on commas automatically) and the dashboard works end to end.
 
@@ -104,7 +182,7 @@ That's the whole switch. No code changes.
 
 > **"Anyone" does not make the spreadsheet public.** It means anyone holding
 > the URL can call *the script*, which reads the still-private sheet on your
-> behalf and returns only the four tabs above.
+> behalf and returns only the five tabs above.
 
 ### Security
 

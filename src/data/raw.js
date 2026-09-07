@@ -63,6 +63,25 @@ const projects = [
   { name: "Epe Commercial Plaza",         budget: 20_000_000, status: "planned" },
 ];
 
+/**
+ * Tab: `sales` — product inflow, one row per product per month.
+ *
+ * Unlike the ledger this arrived complete, so nothing here is estimated.
+ * The tab is append-only: August's rows go underneath July's with their own
+ * `period`, and `deriveSales` shows whichever month is newest. Figures from
+ * the Sabreworks July Inflow report.
+ */
+const sales = [
+  { product: "SabreFlexx",   period: "2026-07", inflow: 519_036_000 },
+  { product: "OPIC",         period: "2026-07", inflow: 178_000_000 },
+  { product: "Oranje",       period: "2026-07", inflow: 50_000_000 },
+  { product: "Grosvenors",   period: "2026-07", inflow: 10_000_000 },
+  { product: "Ikise",        period: "2026-07", inflow: 4_155_909 },
+  { product: "Other Income", period: "2026-07", inflow: 2_675_341 },
+  { product: "Moniya",       period: "2026-07", inflow: 1_000_000 },
+  { product: "Mowe",         period: "2026-07", inflow: 30_000 },
+];
+
 /* ------------------------------------------------------------------ */
 /*  TEMPORARY BRIDGE — retires automatically in Phase 2.               */
 /*                                                                     */
@@ -106,4 +125,4 @@ const aggregates = {
 };
 
 /** The complete payload, byte-compatible with the future endpoint response. */
-export const rawPayload = { meta, investments, cash, projects, aggregates };
+export const rawPayload = { meta, investments, cash, projects, sales, aggregates };

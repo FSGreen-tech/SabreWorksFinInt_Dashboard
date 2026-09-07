@@ -80,6 +80,56 @@ export function parseDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : toISODate(parsed);
 }
 
+/**
+ * Coerce a sheet cell to a reporting period, `YYYY-MM`.
+ *
+ * Sales are reported by month, and whoever types the column will not be
+ * consistent about how: "2026-07", a real July date cell, "July 2026" and
+ * "07/2026" all mean the same month. All four are accepted; anything else
+ * returns null so the caller can raise it rather than silently misfile a
+ * month's revenue.
+ */
+export function parsePeriod(value) {
+  if (value == null || value === "") return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : toISODate(value).slice(0, 7);
+  }
+
+  const text = String(value).trim();
+  if (text === "") return null;
+
+  // YYYY-MM, or a full ISO date whose day part we discard.
+  const iso = text.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+  if (iso) return monthKey(iso[1], iso[2]);
+
+  // "July 2026" / "Jul 2026" / "JULY 2026"
+  const named = text.match(/^([A-Za-z]{3,})\.?\s+(\d{4})$/);
+  if (named) {
+    const index = MONTH_NAMES.findIndex((m) => m.startsWith(named[1].toLowerCase()));
+    if (index >= 0) return monthKey(named[2], index + 1);
+  }
+
+  // MM/YYYY
+  const numeric = text.match(/^(\d{1,2})[/-](\d{4})$/);
+  if (numeric) return monthKey(numeric[2], numeric[1]);
+
+  // Fall through to the date parser, which covers DD/MM/YYYY and the rest.
+  const date = parseDate(text);
+  return date ? date.slice(0, 7) : null;
+}
+
+const MONTH_NAMES = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+];
+
+function monthKey(year, month) {
+  const m = Number(month);
+  if (!Number.isInteger(m) || m < 1 || m > 12) return null;
+  return `${year}-${String(m).padStart(2, "0")}`;
+}
+
 function toISODate(date) {
   // Use UTC parts so a date cell never drifts a day across timezones.
   const y = date.getUTCFullYear();
@@ -237,11 +287,84 @@ export function normalizeProjects(raw = []) {
   return { rows, issues };
 }
 
+/**
+ * Tab: `sales` — one row per product per month.
+ *
+ * `period` is optional. A sheet that only ever holds the current month needs
+ * no such column, and those rows adopt `defaultPeriod` (the reporting month
+ * from `meta.as_of`). A period cell that IS filled in but unreadable is an
+ * issue rather than a fallback: quietly filing June's revenue under July
+ * would move a number on screen with nothing to show it had happened.
+ *
+ * Repeat rows for the same product are legal — someone pasting per-deal lines
+ * rather than a monthly total gets the same answer, because `deriveSales`
+ * sums by product.
+ */
+export function normalizeSales(raw = [], defaultPeriod = null) {
+  const rows = [];
+  const issues = [];
+
+  raw.forEach((row, i) => {
+    if (isBlankRow(row)) return;
+    const sheetRow = i + 2;
+
+    const product = parseText(row.product);
+    const inflow = parseNumber(row.inflow);
+
+    // Accept `month` as an alias so a sheet titled the obvious way still works.
+    const periodCell = row.period ?? row.month;
+    const hasPeriodCell = parseText(periodCell) !== "";
+    const period = hasPeriodCell ? parsePeriod(periodCell) : defaultPeriod;
+
+    if (!product) {
+      issues.push({
+        tab: "sales",
+        row: sheetRow,
+        reason: "missing product name",
+      });
+      return;
+    }
+    if (inflow == null) {
+      issues.push({
+        tab: "sales",
+        row: sheetRow,
+        reason: `inflow is not a number ("${row.inflow ?? ""}")`,
+      });
+      return;
+    }
+    if (period == null) {
+      issues.push({
+        tab: "sales",
+        row: sheetRow,
+        reason: `period is not a month ("${periodCell ?? ""}") — use YYYY-MM`,
+      });
+      return;
+    }
+
+    rows.push({
+      id: `${sheetRow}-${product}`,
+      product,
+      inflow,
+      period,
+      channel: parseText(row.channel),
+    });
+  });
+
+  return { rows, issues };
+}
+
 export function normalizeMeta(raw = {}) {
+  const asOf = parseDate(raw.as_of) ?? toISODate(new Date());
   return {
-    asOf: parseDate(raw.as_of) ?? toISODate(new Date()),
+    asOf,
     currency: parseText(raw.currency) || "NGN",
     depositCount: parseNumber(raw.deposit_count),
+    // Optional. Pins the sales section to one month; without it the section
+    // shows the most recent month present in the `sales` tab.
+    salesPeriod: parsePeriod(raw.sales_period),
+    // The month the ledger is reported against — the default for sales rows
+    // whose own period cell is blank.
+    period: asOf.slice(0, 7),
   };
 }
 
@@ -269,16 +392,24 @@ function normalizeAggregates(raw) {
  * stand-in and (in Phase 2) the fetched endpoint response.
  */
 export function normalizePayload(payload = {}) {
+  const meta = normalizeMeta(payload.meta);
   const investments = normalizeInvestments(payload.investments);
   const cash = normalizeCash(payload.cash);
   const projects = normalizeProjects(payload.projects);
+  const sales = normalizeSales(payload.sales, meta.period);
 
   return {
-    meta: normalizeMeta(payload.meta),
+    meta,
     investments: investments.rows,
     cash: cash.rows,
     projects: projects.rows,
+    sales: sales.rows,
     aggregates: normalizeAggregates(payload.aggregates),
-    issues: [...investments.issues, ...cash.issues, ...projects.issues],
+    issues: [
+      ...investments.issues,
+      ...cash.issues,
+      ...projects.issues,
+      ...sales.issues,
+    ],
   };
 }

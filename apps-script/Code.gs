@@ -38,8 +38,14 @@
 var SHEET_ID = 'PASTE_SPREADSHEET_ID_HERE';
 var TOKEN = 'PASTE_A_LONG_RANDOM_TOKEN_HERE';
 
-/** Tabs read into the payload. Anything else in the workbook stays private. */
-var TABS = ['investments', 'cash', 'projects'];
+/**
+ * Tabs read into the payload. Anything else in the workbook stays private.
+ *
+ * A tab that does not exist yet reads as an empty array rather than an error,
+ * so this list can name `sales` before anyone has created it — the dashboard
+ * simply omits the section until the tab appears.
+ */
+var TABS = ['investments', 'cash', 'projects', 'sales'];
 
 /**
  * Write-back master switch. OFF by default, and you should think hard before

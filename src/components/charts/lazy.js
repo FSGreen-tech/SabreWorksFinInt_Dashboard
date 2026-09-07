@@ -6,4 +6,4 @@ import { lazy } from "react";
  * of the dashboard — every KPI, table and total — paints without it.
  */
 export const DonutCard = lazy(() => import("./DonutCard"));
-export const RealtorBarChart = lazy(() => import("./RealtorBarChart"));
+export const HorizontalBarChart = lazy(() => import("./HorizontalBarChart"));

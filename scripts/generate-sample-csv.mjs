@@ -278,6 +278,28 @@ const PROJECTS = [
   { name: "Epe Commercial Plaza",         budget: 20_000_000, status: "planned" },
 ];
 
+/**
+ * Product inflow for the reporting month, from the Sabreworks July Inflow
+ * report. Complete as printed — nothing here is reconstructed.
+ *
+ * `period` is explicit on every row even though it could be inferred from
+ * meta.as_of, because the tab is append-only: next month's rows go underneath
+ * these with their own period, and the dashboard shows the newest month it
+ * finds.
+ */
+const SALES_PERIOD = AS_OF.slice(0, 7);
+
+const SALES = [
+  { product: "SabreFlexx",   period: SALES_PERIOD, inflow: 519_036_000 },
+  { product: "OPIC",         period: SALES_PERIOD, inflow: 178_000_000 },
+  { product: "Oranje",       period: SALES_PERIOD, inflow: 50_000_000 },
+  { product: "Grosvenors",   period: SALES_PERIOD, inflow: 10_000_000 },
+  { product: "Ikise",        period: SALES_PERIOD, inflow: 4_155_909 },
+  { product: "Other Income", period: SALES_PERIOD, inflow: 2_675_341 },
+  { product: "Moniya",       period: SALES_PERIOD, inflow: 1_000_000 },
+  { product: "Mowe",         period: SALES_PERIOD, inflow: 30_000 },
+];
+
 const META = [{ as_of: AS_OF, currency: "NGN", deposit_count: 82 }];
 
 /* ------------------------------------------------------------------ */
@@ -333,6 +355,7 @@ const files = {
   ]),
   "cash.csv": toCSV(CASH, ["account", "type", "balance", "estimated"]),
   "projects.csv": toCSV(PROJECTS, ["name", "budget", "status"]),
+  "sales.csv": toCSV(SALES, ["product", "period", "inflow"]),
   "meta.csv": toCSV(META, ["as_of", "currency", "deposit_count"]),
 };
 
@@ -343,6 +366,7 @@ const payload = {
   investments: parseCSV(files["investments.csv"]),
   cash: parseCSV(files["cash.csv"]),
   projects: parseCSV(files["projects.csv"]),
+  sales: parseCSV(files["sales.csv"]),
 };
 
 const dash = buildDashboard(normalizePayload(payload));
@@ -368,6 +392,11 @@ for (const target of BUCKET_TARGETS) {
   expect(`bucket ${target.key} principal`, b.principal, target.principal);
   expect(`bucket ${target.key} payable`,   b.payable,   target.payable);
 }
+
+expect("8 products tracked", dash.sales.productCount, 8);
+expect("July product inflow", dash.sales.total, 764_897_250);
+expect("top product", dash.sales.top.name, "SabreFlexx");
+expect("sales period", dash.sales.period, SALES_PERIOD);
 
 for (const check of reconcile(dash)) {
   expect(`reconcile: ${check.name}`, check.actual, check.expected);
@@ -403,10 +432,12 @@ console.log(`\n  ✓ sample sheet generated and reconciled — sample-data/\n`);
 console.log(`    investments.csv   ${ledger.length} rows`);
 console.log(`    cash.csv          ${CASH.length} rows`);
 console.log(`    projects.csv      ${PROJECTS.length} rows`);
+console.log(`    sales.csv         ${SALES.length} rows`);
 console.log(`    meta.csv          1 row\n`);
 console.log(`    invested          ${naira(kpi("invested"))}`);
 console.log(`    payable           ${naira(kpi("payable"))}`);
 console.log(`    cash              ${naira(kpi("cash"))}`);
 console.log(`    available         ${naira(kpi("available"))}`);
+console.log(`    july inflow       ${naira(dash.sales.total)} across ${dash.sales.productCount} products`);
 console.log(`    realtors          ${dash.realtors.length} derived from the ledger`);
 console.log(`    ledger complete   ${dash.ledgerComplete} (fallback aggregates retired)\n`);

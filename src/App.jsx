@@ -7,6 +7,7 @@ import { IssueBanner, SyncErrorBanner } from "./components/banners";
 import { DashboardSkeleton, LoadFailure } from "./components/states";
 import SyncChip from "./components/SyncChip";
 import KpiRow from "./components/sections/KpiRow";
+import SalesSection from "./components/sections/SalesSection";
 import MaturitySection from "./components/sections/MaturitySection";
 import RealtorSection from "./components/sections/RealtorSection";
 import CashSection from "./components/sections/CashSection";
@@ -41,6 +42,7 @@ function Dashboard({ dashboard, sync }) {
     totalPayable,
     availablePool,
     liquidated,
+    sales,
     ledgerComplete,
     ledgerShown,
     ledgerTotal,
@@ -65,6 +67,10 @@ function Dashboard({ dashboard, sync }) {
       <IssueBanner issues={issues} />
 
       <KpiRow kpis={kpis} />
+
+      {/* Absent until the sheet grows a `sales` tab — the rest of the
+          dashboard has never depended on it and still doesn't. */}
+      {sales && <SalesSection sales={sales} />}
 
       <MaturitySection buckets={buckets} totalPayable={totalPayable} liquidated={liquidated} />
 
@@ -117,8 +123,6 @@ export default function App() {
       <DashboardSkeleton />
     );
   }
-
-  console.log(dashboard)
 
   return (
     <Dashboard
