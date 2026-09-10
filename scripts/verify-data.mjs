@@ -189,7 +189,35 @@ const badPeriod = normalizePayload({
 check("sales: unreadable period is raised as an issue", badPeriod.issues.length, 1);
 check("sales: unreadable period row is skipped", badPeriod.sales.length, 0);
 
-/* --- 9. The five reconciliation identities --------------------------- */
+/* --- 9. Liquidated investments excluded from maturity buckets --------- */
+/*  A "fully liquidated" investment must NOT inflate any maturity bucket  */
+/*  — it belongs only in the liquidated summary card.                     */
+
+const withLiquidated = normalizePayload({
+  ...rawPayload,
+  meta: { ...rawPayload.meta, deposit_count: null },   // force ledger-derived path
+  investments: [
+    ...rawPayload.investments,
+    { customer: "LIQ TEST", realtor: "HAFBAM", invested: 10_000_000, at_maturity: 12_000_000,
+      start_date: "2026-04-19", maturity_date: "2026-07-20", status: "fully liquidated" },
+  ],
+});
+const dashLiq = buildDashboard(withLiquidated);
+
+// The liquidated row must NOT appear in any bucket …
+check("liquidated row excluded from bucket counts",
+  dashLiq.buckets.reduce((s, b) => s + b.count, 0),
+  dash.investments.length);              // same count as the all-active baseline
+
+// … but it MUST appear in the liquidated summary.
+check("liquidated row counted in liquidated summary",
+  dashLiq.liquidated.count, 1);
+check("liquidated principal in summary",
+  dashLiq.liquidated.principal, 10_000_000);
+check("liquidated payable in summary",
+  dashLiq.liquidated.payable, 12_000_000);
+
+/* --- 10. The five reconciliation identities -------------------------- */
 
 for (const result of reconcile(dash)) {
   check(`reconcile: ${result.name}`, result.actual, result.expected);

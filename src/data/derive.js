@@ -34,6 +34,11 @@ export function bucketFor(daysLeft) {
   return BUCKETS.find((b) => daysLeft <= b.max) ?? BUCKETS[BUCKETS.length - 1];
 }
 
+/** True when the investment is still running (not yet fully liquidated). */
+export function isRunning(inv) {
+  return (inv.status || "").toLowerCase().trim() !== "fully liquidated";
+}
+
 /**
  * Attach `daysLeft` and bucket identity to each ledger row, measured against
  * `asOf`. This is why the sheet carries no days_left/bucket columns: the
@@ -53,10 +58,15 @@ export function withDerivedFields(investments, asOf) {
   });
 }
 
-/** Roll the ledger up into the four maturity buckets. */
+/**
+ * Roll the ledger up into the four maturity buckets.
+ * Only running (non-liquidated) investments are bucketed — liquidated ones
+ * are handled separately by `deriveLiquidated()`.
+ */
 export function deriveBuckets(derivedInvestments) {
+  const running = derivedInvestments.filter(isRunning);
   return BUCKETS.map((def) => {
-    const rows = derivedInvestments.filter((i) => i.bucketKey === def.key);
+    const rows = running.filter((i) => i.bucketKey === def.key);
     return {
       key: def.key,
       label: def.label,
